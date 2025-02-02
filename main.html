@@ -108,7 +108,7 @@
         ['bold', 'italic', 'underline'], 
         [{ 'color': [] }], 
         // Updated font toolbar to include common Korean fonts.
-        [{ 'font': ['나눔고딕','나눔명조','돋움','굴림','바탕','궁서', 'HWH폰트'] }]
+        [{ 'font': ['나눔고딕','나눔명조','돋움','굴림','바탕','궁서'] }]
       ] }
     };
     // Initialize editors.
@@ -219,19 +219,19 @@
       document.querySelector('.bottom').style.display = toggleBottom.checked ? "block" : "none";
     });
     
-    // Add input listeners to update editor heights dynamically.
-    document.getElementById('heightTop').addEventListener('input', e => {
-      document.getElementById('editorTop').style.height = e.target.value + "px";
-    });
-    document.getElementById('heightLeft').addEventListener('input', e => {
-      document.getElementById('editorLeft').style.height = e.target.value + "px";
-    });
-    document.getElementById('heightRight').addEventListener('input', e => {
-      document.getElementById('editorRight').style.height = e.target.value + "px";
-    });
-    document.getElementById('heightBottom').addEventListener('input', e => {
-      document.getElementById('editorBottom').style.height = e.target.value + "px";
-    });
+    // Removed dynamic height update for text editors:
+    // document.getElementById('heightTop').addEventListener('input', e => {
+    //   document.getElementById('editorTop').style.height = e.target.value + "px";
+    // });
+    // document.getElementById('heightLeft').addEventListener('input', e => {
+    //   document.getElementById('editorLeft').style.height = e.target.value + "px";
+    // });
+    // document.getElementById('heightRight').addEventListener('input', e => {
+    //   document.getElementById('editorRight').style.height = e.target.value + "px";
+    // });
+    // document.getElementById('heightBottom').addEventListener('input', e => {
+    //   document.getElementById('editorBottom').style.height = e.target.value + "px";
+    // });
 
     // New helper: add alignment inputs to the toolbar.
     function addAlignmentInputs(quill) {
@@ -284,6 +284,14 @@
     addAlignmentInputs(editorLeft);
     addAlignmentInputs(editorRight);
     addAlignmentInputs(editorBottom);
+    
+    // Set default text editor styles on page load.
+    window.addEventListener('load', () => {
+      const initialBg = document.getElementById('bgColorInput').value;
+      document.querySelectorAll('.ql-editor').forEach(editor => {
+        editor.style.backgroundColor = initialBg;
+      });
+    });
     
     // New helper to draw text within a specified region.
     function drawTextInRegion(delta, region, vAlign, hAlign) {
@@ -351,6 +359,13 @@
         const region = { x: leftZone + uploadedImage.width, y: topZone, width: rightZone, height: uploadedImage.height };
         drawTextInRegion(delta, region, vAlign, hAlign);
       }
+    });
+
+    // Update text editors' background when overall background color changes.
+    document.getElementById('bgColorInput').addEventListener('input', (e) => {
+      document.querySelectorAll('.ql-editor').forEach(editor => {
+        editor.style.backgroundColor = e.target.value;
+      });
     });
   </script>
 </body>
