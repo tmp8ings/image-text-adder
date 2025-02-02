@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>이미지와 텍스트 결합</title>
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+  <style>
+    body { display: flex; flex-direction: column; align-items: center; font-family: sans-serif; }
+    .inputs { 
+      display: grid; 
+      grid-template-areas:
+         "top top top"
+         "left center right"
+         "bottom bottom bottom";
+      grid-gap: 10px; 
+      margin: 20px;
+    }
+    .inputs > .top { grid-area: top; }
+    .inputs > .left { grid-area: left; }
+    .inputs > .center { grid-area: center; }
+    .inputs > .right { grid-area: right; }
+    .inputs > .bottom { grid-area: bottom; }
+    .editor { height: 100px; }
+    .upload-box { border: 2px dashed #ccc; padding: 20px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>이미지와 텍스트 결합</h1>
+  <!-- 새 토글 컨테이너 추가 (기본값: 상단, 하단만 활성화) -->
+  <div id="toggleContainer">
+    <label><input type="checkbox" id="toggleTop" checked>상단 텍스트 활성화</label>
+    <label><input type="checkbox" id="toggleLeft">좌측 텍스트 활성화</label>
+    <label><input type="checkbox" id="toggleRight">우측 텍스트 활성화</label>
+    <label><input type="checkbox" id="toggleBottom" checked>하단 텍스트 활성화</label>
+  </div>
+  <!-- 새 overall background color 입력 추가 -->
+  <div id="bgColorContainer">
+    <label>전체 배경 색: <input type="color" id="bgColorInput" value="#ffffff"></label>
+  </div>
+  <!-- 텍스트 에디터와 이미지 업로드를 grid로 배치 -->
+  <div class="inputs">
+    <div class="top">
+      <label>상단 영역 높이:</label>
+      <!-- 새 높이 입력 추가 -->
+      <input type="number" id="heightTop" value="100" min="50"> px
+      <div id="editorTop" class="editor"></div>
+    </div>
+    <div class="left">
+      <label>좌측 영역 너비:</label>
+      <input type="number" id="heightLeft" value="100" min="50"> px
+      <div id="editorLeft" class="editor"></div>
+    </div>
+    <div class="center">
+      <label>이미지 업로드</label>
+      <div class="upload-box">
+        <input type="file" id="imgUpload" accept="image/*">
+      </div>
+    </div>
+    <div class="right">
+      <label>우측 영역 너비:</label>
+      <input type="number" id="heightRight" value="100" min="50"> px
+      <div id="editorRight" class="editor"></div>
+    </div>
+    <div class="bottom">
+      <label>하단 영역 높이:</label>
+      <input type="number" id="heightBottom" value="100" min="50"> px
+      <div id="editorBottom" class="editor"></div>
+    </div>
+  </div>
+  
+  <button id="confirmBtn">확인</button>
+  
+  <!-- 결과 이미지 표시 영역 -->
+  <div id="canvasContainer">
+    <canvas id="resultCanvas"></canvas>
+  </div>
+  
+  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+  <script>
+    const imgUpload = document.getElementById('imgUpload');
+    const confirmBtn = document.getElementById('confirmBtn');
+    const resultCanvas = document.getElementById('resultCanvas');
+    const ctx = resultCanvas.getContext('2d');
+    let uploadedImage = new Image();
+    imgUpload.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if(file){
+        const reader = new FileReader();
+        reader.onload = function(event){
+          uploadedImage.onload = function(){
+            const padding = 50;
+            resultCanvas.width = uploadedImage.width + padding * 2;
+            resultCanvas.height = uploadedImage.height + padding * 2;
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, resultCanvas.width, resultCanvas.height);
+            ctx.drawImage(uploadedImage, padding, padding);
+          }
+          uploadedImage.src = event.target.result;
+        }
+        reader.readAsDataURL(file);
+      }
+    });
+    
+    // Remove built-in size option from toolbar.
+    const quillOptions = {
+      theme: 'snow',
+      modules: { toolbar: [ 
+        ['bold', 'italic', 'underline'], 
+        [{ 'color': [] }], 
+        // Updated font toolbar to include common Korean fonts.
+        [{ 'font': ['나눔고딕','나눔명조','돋움','굴림','바탕','궁서'] }]
+      ] }
+    };
+    // Initialize editors.
+    const editorTop = new Quill('#editorTop', quillOptions);
+    const editorLeft = new Quill('#editorLeft', quillOptions);
+    const editorRight = new Quill('#editorRight', quillOptions);
+    const editorBottom = new Quill('#editorBottom', quillOptions);
+    
+    // Updated addFontSizeInput with a label.
+    function addFontSizeInput(quill) {
+      const toolbar = quill.getModule('toolbar').container;
+      const wrapper = document.createElement('span');
+      wrapper.style.display = 'inline-flex';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.marginLeft = '10px';
+
+      const label = document.createElement('span');
+      label.innerText = 'Font Size:';
+      label.style.marginRight = '5px';
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '1';
+      input.value = '20';
+      input.style.width = '50px';
+
+      input.addEventListener('input', function() {
+        quill.format('size', input.value + 'px');
+      });
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(input);
+      toolbar.appendChild(wrapper);
+    }
+    addFontSizeInput(editorTop);
+    addFontSizeInput(editorLeft);
+    addFontSizeInput(editorRight);
+    addFontSizeInput(editorBottom);
+    
+    // Update drawFormattedText to include font attribute.
+    function drawFormattedText(delta, x, y, align = "center") {
+      const lineHeight = 24;  // default fallback line height.
+      let lines = [];
+      let currentLine = [];
+      delta.ops.forEach(op => {
+        if (typeof op.insert === 'string') {
+          let parts = op.insert.split("\n");
+          parts.forEach((part, index) => {
+            if (index > 0) {
+              lines.push(currentLine);
+              currentLine = [];
+            }
+            if (part) {
+              currentLine.push({ text: part, attributes: op.attributes });
+            }
+          });
+        }
+      });
+      if (currentLine.length > 0) { lines.push(currentLine); }
+      lines.forEach((line, lineIndex) => {
+        let totalWidth = 0;
+        // Pre-calculate total width using each segment's size and font.
+        line.forEach(segment => {
+          let fontSize = (segment.attributes && segment.attributes.size) ? parseInt(segment.attributes.size) : 20;
+          let fontFamily = (segment.attributes && segment.attributes.font) ? segment.attributes.font : "sans-serif";
+          ctx.font = fontSize + "px " + fontFamily;
+          totalWidth += ctx.measureText(segment.text).width;
+        });
+        let currentX;
+        if (align === "center") {
+          currentX = x - totalWidth / 2;
+        } else if (align === "left") {
+          currentX = x;
+        } else if (align === "right") {
+          currentX = x - totalWidth;
+        }
+        line.forEach(segment => {
+          let fontSize = (segment.attributes && segment.attributes.size) ? parseInt(segment.attributes.size) : 20;
+          let fontFamily = (segment.attributes && segment.attributes.font) ? segment.attributes.font : "sans-serif";
+          ctx.font = fontSize + "px " + fontFamily;
+          ctx.fillStyle = (segment.attributes && segment.attributes.color) ? segment.attributes.color : "#000";
+          let textWidth = ctx.measureText(segment.text).width;
+          ctx.fillText(segment.text, currentX, y + lineIndex * lineHeight);
+          currentX += textWidth;
+        });
+      });
+    }
+    
+    const toggleTop = document.getElementById('toggleTop');
+    const toggleLeft = document.getElementById('toggleLeft');
+    const toggleRight = document.getElementById('toggleRight');
+    const toggleBottom = document.getElementById('toggleBottom');
+    // 초기 상태 설정: 좌측, 우측 텍스트 영역 숨김
+    document.querySelector('.left').style.display = toggleLeft.checked ? "block" : "none";
+    document.querySelector('.right').style.display = toggleRight.checked ? "block" : "none";
+    
+    // Add event listeners to hide/show corresponding editor containers.
+    toggleTop.addEventListener('change', () => {
+      document.querySelector('.top').style.display = toggleTop.checked ? "block" : "none";
+    });
+    toggleLeft.addEventListener('change', () => {
+      document.querySelector('.left').style.display = toggleLeft.checked ? "block" : "none";
+    });
+    toggleRight.addEventListener('change', () => {
+      document.querySelector('.right').style.display = toggleRight.checked ? "block" : "none";
+    });
+    toggleBottom.addEventListener('change', () => {
+      document.querySelector('.bottom').style.display = toggleBottom.checked ? "block" : "none";
+    });
+    
+    // Add input listeners to update editor heights dynamically.
+    document.getElementById('heightTop').addEventListener('input', e => {
+      document.getElementById('editorTop').style.height = e.target.value + "px";
+    });
+    document.getElementById('heightLeft').addEventListener('input', e => {
+      document.getElementById('editorLeft').style.height = e.target.value + "px";
+    });
+    document.getElementById('heightRight').addEventListener('input', e => {
+      document.getElementById('editorRight').style.height = e.target.value + "px";
+    });
+    document.getElementById('heightBottom').addEventListener('input', e => {
+      document.getElementById('editorBottom').style.height = e.target.value + "px";
+    });
+
+    // New helper: add alignment inputs to the toolbar.
+    function addAlignmentInputs(quill) {
+      const toolbar = quill.getModule('toolbar').container;
+      const wrapper = document.createElement('span');
+      wrapper.style.display = 'inline-flex';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.marginLeft = '10px';
+
+      // Vertical alignment select
+      const vLabel = document.createElement('span');
+      vLabel.innerText = 'V Align:';
+      vLabel.style.marginRight = '5px';
+      const vSelect = document.createElement('select');
+      ['top', 'middle', 'bottom'].forEach(val => {
+        const option = document.createElement('option');
+        option.value = val;
+        option.innerText = val;
+        vSelect.appendChild(option);
+      });
+      // Default is top.
+      vSelect.value = 'top';
+
+      // Horizontal alignment select
+      const hLabel = document.createElement('span');
+      hLabel.innerText = 'H Align:';
+      hLabel.style.margin = '0 5px';
+      const hSelect = document.createElement('select');
+      ['left', 'center', 'right'].forEach(val => {
+        const option = document.createElement('option');
+        option.value = val;
+        option.innerText = val;
+        hSelect.appendChild(option);
+      });
+      // Default is center.
+      hSelect.value = 'center';
+
+      wrapper.appendChild(vLabel);
+      wrapper.appendChild(vSelect);
+      wrapper.appendChild(hLabel);
+      wrapper.appendChild(hSelect);
+      toolbar.appendChild(wrapper);
+      // Store references on the Quill instance.
+      quill.alignmentVerticalSelect = vSelect;
+      quill.alignmentHorizontalSelect = hSelect;
+    }
+    
+    // Append alignment inputs to each editor.
+    addAlignmentInputs(editorTop);
+    addAlignmentInputs(editorLeft);
+    addAlignmentInputs(editorRight);
+    addAlignmentInputs(editorBottom);
+    
+    // Modify confirmation button function to conditionally render each text area.
+    confirmBtn.addEventListener('click', () => {
+      if(!uploadedImage.src){
+        alert("먼저 이미지를 업로드하세요.");
+        return;
+      }
+      const padding = 50;
+      // Use global background color.
+      const overallBGColor = document.getElementById('bgColorInput').value;
+      ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+      ctx.fillStyle = overallBGColor;
+      ctx.fillRect(0, 0, resultCanvas.width, resultCanvas.height);
+      ctx.drawImage(uploadedImage, padding, padding);
+      
+      ctx.font = "20px sans-serif";
+      ctx.textAlign = "left"; 
+      
+      // Helper to compute coordinates.
+      function computeCoordinates(region, vAlign, hAlign) {
+        let x, y;
+        if(region === 'top'){
+          if(hAlign === 'left') { x = padding; }
+          else if(hAlign === 'center') { x = resultCanvas.width/2; }
+          else { x = resultCanvas.width - padding; }
+          if(vAlign === 'top') { y = padding * 0.25; }
+          else if(vAlign === 'middle') { y = padding * 0.5; }
+          else { y = padding * 0.75; }
+        }
+        else if(region === 'bottom'){
+          if(hAlign === 'left') { x = padding; }
+          else if(hAlign === 'center') { x = resultCanvas.width/2; }
+          else { x = resultCanvas.width - padding; }
+          if(vAlign === 'top') { y = resultCanvas.height - padding + padding*0.25; }
+          else if(vAlign === 'middle') { y = resultCanvas.height - padding + padding*0.5; }
+          else { y = resultCanvas.height - padding + padding*0.75; }
+        }
+        else if(region === 'left'){
+          if(hAlign === 'left') { x = padding * 0.25; }
+          else if(hAlign === 'center') { x = padding * 0.5; }
+          else { x = padding * 0.75; }
+          if(vAlign === 'top') { y = padding; }
+          else if(vAlign === 'middle') { y = resultCanvas.height/2; }
+          else { y = resultCanvas.height - padding; }
+        }
+        else if(region === 'right'){
+          if(hAlign === 'left') { x = resultCanvas.width - padding + padding*0.25; }
+          else if(hAlign === 'center') { x = resultCanvas.width - padding + padding*0.5; }
+          else { x = resultCanvas.width - padding + padding*0.75; }
+          if(vAlign === 'top') { y = padding; }
+          else if(vAlign === 'middle') { y = resultCanvas.height/2; }
+          else { y = resultCanvas.height - padding; }
+        }
+        return { x, y };
+      }
+      
+      // Top text (if enabled).
+      if(toggleTop.checked){
+        const delta = editorTop.getContents();
+        const vAlign = editorTop.alignmentVerticalSelect.value;
+        const hAlign = editorTop.alignmentHorizontalSelect.value;
+        const { x, y } = computeCoordinates('top', vAlign, hAlign);
+        ctx.save();
+        drawFormattedText(delta, x, y, hAlign);
+        ctx.restore();
+      }
+      
+      // Bottom text.
+      if(toggleBottom.checked){
+        const delta = editorBottom.getContents();
+        const vAlign = editorBottom.alignmentVerticalSelect.value;
+        const hAlign = editorBottom.alignmentHorizontalSelect.value;
+        const { x, y } = computeCoordinates('bottom', vAlign, hAlign);
+        ctx.save();
+        drawFormattedText(delta, x, y, hAlign);
+        ctx.restore();
+      }
+      
+      // Left text.
+      if(toggleLeft.checked){
+        const delta = editorLeft.getContents();
+        const vAlign = editorLeft.alignmentVerticalSelect.value;
+        const hAlign = editorLeft.alignmentHorizontalSelect.value;
+        const { x, y } = computeCoordinates('left', vAlign, hAlign);
+        ctx.save();
+        drawFormattedText(delta, x, y, hAlign);
+        ctx.restore();
+      }
+      
+      // Right text.
+      if(toggleRight.checked){
+        const delta = editorRight.getContents();
+        const vAlign = editorRight.alignmentVerticalSelect.value;
+        const hAlign = editorRight.alignmentHorizontalSelect.value;
+        const { x, y } = computeCoordinates('right', vAlign, hAlign);
+        ctx.save();
+        drawFormattedText(delta, x, y, hAlign);
+        ctx.restore();
+      }
+    });
+  </script>
+</body>
+</html>
