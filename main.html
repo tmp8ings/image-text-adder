@@ -35,7 +35,7 @@
   </div>
   <!-- 새 overall background color 입력 추가 -->
   <div id="bgColorContainer">
-    <label>전체 배경 색: <input type="color" id="bgColorInput" value="#ffffff"></label>
+    <label>전체 배경 색: <input type="color" id="bgColorInput" value="#000000"></label>
   </div>
   <!-- 텍스트 에디터와 이미지 업로드를 grid로 배치 -->
   <div class="inputs">
@@ -108,7 +108,7 @@
         ['bold', 'italic', 'underline'], 
         [{ 'color': [] }], 
         // Updated font toolbar to include common Korean fonts.
-        [{ 'font': ['나눔고딕','나눔명조','돋움','굴림','바탕','궁서'] }]
+        [{ 'font': ['나눔고딕','나눔명조','돋움','굴림','바탕','궁서', 'HWH폰트'] }]
       ] }
     };
     // Initialize editors.
@@ -285,103 +285,71 @@
     addAlignmentInputs(editorRight);
     addAlignmentInputs(editorBottom);
     
-    // Modify confirmation button function to conditionally render each text area.
+    // New helper to draw text within a specified region.
+    function drawTextInRegion(delta, region, vAlign, hAlign) {
+      let x = (hAlign === 'left') ? region.x :
+              (hAlign === 'center') ? region.x + region.width/2 :
+              region.x + region.width;
+      let y = (vAlign === 'top') ? region.y + 20 :
+              (vAlign === 'middle') ? region.y + region.height/2 :
+              region.y + region.height - 10;
+      ctx.save();
+      drawFormattedText(delta, x, y, hAlign);
+      ctx.restore();
+    }
+    
+    // Modify confirmation button function.
     confirmBtn.addEventListener('click', () => {
       if(!uploadedImage.src){
         alert("먼저 이미지를 업로드하세요.");
         return;
       }
-      const padding = 50;
-      // Use global background color.
+      // Determine active text regions.
+      const topZone = toggleTop.checked ? Number(document.getElementById('heightTop').value) : 0;
+      const bottomZone = toggleBottom.checked ? Number(document.getElementById('heightBottom').value) : 0;
+      const leftZone = toggleLeft.checked ? Number(document.getElementById('heightLeft').value) : 0;
+      const rightZone = toggleRight.checked ? Number(document.getElementById('heightRight').value) : 0;
+
+      // Set canvas dimensions based on image and active text areas.
+      resultCanvas.width = uploadedImage.width + leftZone + rightZone;
+      resultCanvas.height = uploadedImage.height + topZone + bottomZone;
+      
+      // Global background fill.
       const overallBGColor = document.getElementById('bgColorInput').value;
-      ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
       ctx.fillStyle = overallBGColor;
       ctx.fillRect(0, 0, resultCanvas.width, resultCanvas.height);
-      ctx.drawImage(uploadedImage, padding, padding);
       
-      ctx.font = "20px sans-serif";
-      ctx.textAlign = "left"; 
+      // Draw the image at offset.
+      ctx.drawImage(uploadedImage, leftZone, topZone);
       
-      // Helper to compute coordinates.
-      function computeCoordinates(region, vAlign, hAlign) {
-        let x, y;
-        if(region === 'top'){
-          if(hAlign === 'left') { x = padding; }
-          else if(hAlign === 'center') { x = resultCanvas.width/2; }
-          else { x = resultCanvas.width - padding; }
-          if(vAlign === 'top') { y = padding * 0.25; }
-          else if(vAlign === 'middle') { y = padding * 0.5; }
-          else { y = padding * 0.75; }
-        }
-        else if(region === 'bottom'){
-          if(hAlign === 'left') { x = padding; }
-          else if(hAlign === 'center') { x = resultCanvas.width/2; }
-          else { x = resultCanvas.width - padding; }
-          if(vAlign === 'top') { y = resultCanvas.height - padding + padding*0.25; }
-          else if(vAlign === 'middle') { y = resultCanvas.height - padding + padding*0.5; }
-          else { y = resultCanvas.height - padding + padding*0.75; }
-        }
-        else if(region === 'left'){
-          if(hAlign === 'left') { x = padding * 0.25; }
-          else if(hAlign === 'center') { x = padding * 0.5; }
-          else { x = padding * 0.75; }
-          if(vAlign === 'top') { y = padding; }
-          else if(vAlign === 'middle') { y = resultCanvas.height/2; }
-          else { y = resultCanvas.height - padding; }
-        }
-        else if(region === 'right'){
-          if(hAlign === 'left') { x = resultCanvas.width - padding + padding*0.25; }
-          else if(hAlign === 'center') { x = resultCanvas.width - padding + padding*0.5; }
-          else { x = resultCanvas.width - padding + padding*0.75; }
-          if(vAlign === 'top') { y = padding; }
-          else if(vAlign === 'middle') { y = resultCanvas.height/2; }
-          else { y = resultCanvas.height - padding; }
-        }
-        return { x, y };
-      }
-      
-      // Top text (if enabled).
+      // Draw text in each active region:
       if(toggleTop.checked){
         const delta = editorTop.getContents();
         const vAlign = editorTop.alignmentVerticalSelect.value;
         const hAlign = editorTop.alignmentHorizontalSelect.value;
-        const { x, y } = computeCoordinates('top', vAlign, hAlign);
-        ctx.save();
-        drawFormattedText(delta, x, y, hAlign);
-        ctx.restore();
+        const region = { x: leftZone, y: 0, width: uploadedImage.width, height: topZone };
+        drawTextInRegion(delta, region, vAlign, hAlign);
       }
-      
-      // Bottom text.
       if(toggleBottom.checked){
         const delta = editorBottom.getContents();
         const vAlign = editorBottom.alignmentVerticalSelect.value;
         const hAlign = editorBottom.alignmentHorizontalSelect.value;
-        const { x, y } = computeCoordinates('bottom', vAlign, hAlign);
-        ctx.save();
-        drawFormattedText(delta, x, y, hAlign);
-        ctx.restore();
+        const region = { x: leftZone, y: topZone + uploadedImage.height, width: uploadedImage.width, height: bottomZone };
+        drawTextInRegion(delta, region, vAlign, hAlign);
       }
-      
-      // Left text.
       if(toggleLeft.checked){
         const delta = editorLeft.getContents();
         const vAlign = editorLeft.alignmentVerticalSelect.value;
         const hAlign = editorLeft.alignmentHorizontalSelect.value;
-        const { x, y } = computeCoordinates('left', vAlign, hAlign);
-        ctx.save();
-        drawFormattedText(delta, x, y, hAlign);
-        ctx.restore();
+        const region = { x: 0, y: topZone, width: leftZone, height: uploadedImage.height };
+        drawTextInRegion(delta, region, vAlign, hAlign);
       }
-      
-      // Right text.
       if(toggleRight.checked){
         const delta = editorRight.getContents();
         const vAlign = editorRight.alignmentVerticalSelect.value;
         const hAlign = editorRight.alignmentHorizontalSelect.value;
-        const { x, y } = computeCoordinates('right', vAlign, hAlign);
-        ctx.save();
-        drawFormattedText(delta, x, y, hAlign);
-        ctx.restore();
+        const region = { x: leftZone + uploadedImage.width, y: topZone, width: rightZone, height: uploadedImage.height };
+        drawTextInRegion(delta, region, vAlign, hAlign);
       }
     });
   </script>
