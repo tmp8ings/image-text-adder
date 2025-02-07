@@ -33,9 +33,10 @@
     <label><input type="checkbox" id="toggleRight">우측 텍스트 활성화</label>
     <label><input type="checkbox" id="toggleBottom" checked>하단 텍스트 활성화</label>
   </div>
-  <!-- 새 overall background color 입력 추가 -->
+  <!-- Modify the background color container to add a global font size input -->
   <div id="bgColorContainer">
-    <label>전체 배경 색: <input type="color" id="bgColorInput" value="#000000"></label>
+    <label>전체 배경 색: <input type="color" id="bgColorInput" value="#4E3840"></label>
+    <label style="margin-left:20px;">전체 폰트 사이즈: <input type="number" id="globalFontSizeInput" value="20" min="1" style="width:50px;"></label>
   </div>
   <!-- 텍스트 에디터와 이미지 업로드를 grid로 배치 -->
   <div class="inputs">
@@ -82,6 +83,8 @@
     const resultCanvas = document.getElementById('resultCanvas');
     const ctx = resultCanvas.getContext('2d');
     let uploadedImage = new Image();
+    
+    // Handle file upload.
     imgUpload.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if(file){
@@ -101,6 +104,30 @@
       }
     });
     
+    // New: Support image uploading via clipboard paste.
+    document.addEventListener('paste', (e) => {
+      const items = e.clipboardData.items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          const reader = new FileReader();
+          reader.onload = function(event) {
+            uploadedImage.onload = function(){
+              const padding = 50;
+              resultCanvas.width = uploadedImage.width + padding * 2;
+              resultCanvas.height = uploadedImage.height + padding * 2;
+              ctx.fillStyle = "#fff";
+              ctx.fillRect(0, 0, resultCanvas.width, resultCanvas.height);
+              ctx.drawImage(uploadedImage, padding, padding);
+            };
+            uploadedImage.src = event.target.result;
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    });
+    
     // Remove built-in size option from toolbar.
     const quillOptions = {
       theme: 'snow',
@@ -109,7 +136,9 @@
         [{ 'color': [] }], 
         // Updated font toolbar to include common Korean fonts.
         [{ 'font': ['나눔고딕','나눔명조','돋움','굴림','바탕','궁서'] }]
-      ] }
+      ] },
+      // Allow custom size formatting.
+      formats: ['size', 'color', 'font', 'bold', 'italic', 'underline']
     };
     // Initialize editors.
     const editorTop = new Quill('#editorTop', quillOptions);
@@ -117,7 +146,13 @@
     const editorRight = new Quill('#editorRight', quillOptions);
     const editorBottom = new Quill('#editorBottom', quillOptions);
     
-    // Updated addFontSizeInput with a label.
+    // Remove per-editor font size inputs.
+//    addFontSizeInput(editorTop);
+//    addFontSizeInput(editorLeft);
+//    addFontSizeInput(editorRight);
+//    addFontSizeInput(editorBottom);
+    
+    // Updated addFontSizeInput with a label and live update of editor view.
     function addFontSizeInput(quill) {
       const toolbar = quill.getModule('toolbar').container;
       const wrapper = document.createElement('span');
@@ -136,21 +171,22 @@
       input.style.width = '50px';
 
       input.addEventListener('input', function() {
-        quill.format('size', input.value + 'px');
+        const newSize = input.value + "px";
+        quill.format('size', newSize);
+        // Update editor view.
+        quill.root.style.fontSize = newSize;
       });
 
       wrapper.appendChild(label);
       wrapper.appendChild(input);
       toolbar.appendChild(wrapper);
     }
-    addFontSizeInput(editorTop);
-    addFontSizeInput(editorLeft);
-    addFontSizeInput(editorRight);
-    addFontSizeInput(editorBottom);
     
     // Update drawFormattedText to include font attribute.
     function drawFormattedText(delta, x, y, align = "center") {
       const lineHeight = 24;  // default fallback line height.
+      // Retrieve global default font size.
+      const globalDefaultSize = parseInt(document.getElementById('globalFontSizeInput').value) || 20;
       let lines = [];
       let currentLine = [];
       delta.ops.forEach(op => {
@@ -172,7 +208,8 @@
         let totalWidth = 0;
         // Pre-calculate total width using each segment's size and font.
         line.forEach(segment => {
-          let fontSize = (segment.attributes && segment.attributes.size) ? parseInt(segment.attributes.size) : 20;
+          // Use attribute size if available, otherwise fallback to globalDefaultSize.
+          let fontSize = (segment.attributes && segment.attributes.size) ? parseInt(segment.attributes.size) : globalDefaultSize;
           let fontFamily = (segment.attributes && segment.attributes.font) ? segment.attributes.font : "sans-serif";
           ctx.font = fontSize + "px " + fontFamily;
           totalWidth += ctx.measureText(segment.text).width;
@@ -186,7 +223,7 @@
           currentX = x - totalWidth;
         }
         line.forEach(segment => {
-          let fontSize = (segment.attributes && segment.attributes.size) ? parseInt(segment.attributes.size) : 20;
+          let fontSize = (segment.attributes && segment.attributes.size) ? parseInt(segment.attributes.size) : globalDefaultSize;
           let fontFamily = (segment.attributes && segment.attributes.font) ? segment.attributes.font : "sans-serif";
           ctx.font = fontSize + "px " + fontFamily;
           ctx.fillStyle = (segment.attributes && segment.attributes.color) ? segment.attributes.color : "#000";
@@ -252,8 +289,8 @@
         option.innerText = val;
         vSelect.appendChild(option);
       });
-      // Default is top.
-      vSelect.value = 'top';
+      // Default is center.
+      vSelect.value = 'middle';
 
       // Horizontal alignment select
       const hLabel = document.createElement('span');
@@ -284,6 +321,24 @@
     addAlignmentInputs(editorLeft);
     addAlignmentInputs(editorRight);
     addAlignmentInputs(editorBottom);
+    
+    // Set default editor styles on page load, including global font size.
+    window.addEventListener('load', () => {
+      const initialBg = document.getElementById('bgColorInput').value;
+      const initialFontSize = document.getElementById('globalFontSizeInput').value + "px";
+      document.querySelectorAll('.ql-editor').forEach(editor => {
+        editor.style.backgroundColor = initialBg;
+        editor.style.fontSize = initialFontSize;
+      });
+    });
+    
+    // Listen for global font size changes.
+    document.getElementById('globalFontSizeInput').addEventListener('input', (e) => {
+      const newSize = e.target.value + "px";
+      document.querySelectorAll('.ql-editor').forEach(editor => {
+        editor.style.fontSize = newSize;
+      });
+    });
     
     // Set default text editor styles on page load.
     window.addEventListener('load', () => {
